@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Music Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .player-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .controls button, .repeaters button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .controls button:hover, .repeaters button:hover {
+            background-color: #0056b3;
+        }
+        .repeater-input, .file-input {
+            margin-top: 20px;
+        }
+        .repeaters {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .repeaters button {
+            background-color: #28a745;
+        }
+        .repeaters button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <audio id="audio-player" controls>
+            Your browser does not support the audio element.
+        </audio>
+        <div class="file-input">
+            <label for="file-input">Choose a song: </label>
+            <input type="file" id="file-input" accept="audio/*">
+        </div>
+        <div class="repeater-input">
+            <label for="repeater-count">Number of Repeat Pairs (1-5): </label>
+            <input type="number" id="repeater-count" min="1" max="5" value="1">
+            <button onclick="createRepeaterButtons()">Create Repeaters</button>
+        </div>
+        <div class="controls">
+            <button id="loop-button" onclick="toggleLoop()">Loop Off</button>
+            <button id="terminate-repeat-button" onclick="terminateRepeat()">Terminate Repeats</button>
+        </div>
+        <div class="repeaters" id="repeaters"></div>
+    </div>
+    <script>
+        let repeatPairs = [];
+        let currentPairIndex = 0;
+        let loopMode = 0; // 0: off, 1: one, 2: infinite, 3: n
+        let loopCount = 0;
+        let nLoops = 0;
+
+        document.getElementById('file-input').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const audioPlayer = document.getElementById('audio-player');
+            const objectURL = URL.createObjectURL(file);
+            audioPlayer.src = objectURL;
+            audioPlayer.load();
+        });
+
+        function createRepeaterButtons() {
+            const repeaterCount = document.getElementById('repeater-count').value;
+            const repeatersDiv = document.getElementById('repeaters');
+            repeatersDiv.innerHTML = ''; // Clear previous buttons
+
+            repeatPairs = [];
+            for (let i = 0; i < repeaterCount; i++) {
+                const aButton = document.createElement('button');
+                const bButton = document.createElement('button');
+                aButton.innerText = `A${i+1}`;
+                bButton.innerText = `B${i+1}`;
+
+                aButton.onclick = () => setPoint(i, 'A');
+                bButton.onclick = () => setPoint(i, 'B');
+
+                repeatPairs.push({ A: null, B: null });
+                repeatersDiv.appendChild(aButton);
+                repeatersDiv.appendChild(bButton);
+            }
+
+            currentPairIndex = 0;
+            document.getElementById('audio-player').ontimeupdate = checkRepeats;
+        }
+
+        function setPoint(index, point) {
+            const audio = document.getElementById('audio-player');
+            repeatPairs[index][point] = audio.currentTime;
+            if (point === 'A') {
+                document.querySelector(`#repeaters button:nth-child(${index * 2 + 1})`).innerText = `A${index + 1} (${formatTime(audio.currentTime)})`;
+            } else {
+                document.querySelector(`#repeaters button:nth-child(${index * 2 + 2})`).innerText = `B${index + 1} (${formatTime(audio.currentTime)})`;
+            }
+        }
+
+        function checkRepeats() {
+            const audio = document.getElementById('audio-player');
+            if (repeatPairs.length > 0 && repeatPairs[currentPairIndex].A !== null && repeatPairs[currentPairIndex].B !== null) {
+                if (audio.currentTime >= repeatPairs[currentPairIndex].B) {
+                    currentPairIndex = (currentPairIndex + 1) % repeatPairs.length;
+                    audio.currentTime = repeatPairs[currentPairIndex].A;
+                }
+            }
+        }
+
+        function formatTime(seconds) {
+            const minutes = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        function toggleLoop() {
+            const loopButton = document.getElementById('loop-button');
+            loopMode = (loopMode + 1) % 4;
+
+            if (loopMode === 3) {
+                nLoops = parseInt(prompt("Enter the number of times to loop:"), 10);
+                if (isNaN(nLoops) || nLoops <= 0) {
+                    nLoops = 0;
+                    loopMode = 0;
+                }
+            }
+
+            switch (loopMode) {
+                case 0:
+                    loopButton.innerText = "Loop Off";
+                    break;
+                case 1:
+                    loopButton.innerText = "Loop One";
+                    break;
+                case 2:
+                    loopButton.innerText = "Loop Infinite";
+                    break;
+                case 3:
+                    loopButton.innerText = `Loop ${nLoops} Times`;
+                    loopCount = 0;
+                    break;
+            }
+        }
+
+        function handleLoop() {
+            const audio = document.getElementById('audio-player');
+            audio.addEventListener('ended', () => {
+                if (loopMode === 1) {
+                    audio.currentTime = 0;
+                    audio.play();
+                    loopMode = 0;
+                    document.getElementById('loop-button').innerText = "Loop Off";
+                } else if (loopMode === 2) {
+                    audio.currentTime = 0;
+                    audio.play();
+                } else if (loopMode === 3) {
+                    if (loopCount < nLoops - 1) {
+                        loopCount++;
+                        audio.currentTime = 0;
+                        audio.play();
+                    } else {
+                        loopMode = 0;
+                        document.getElementById('loop-button').innerText = "Loop Off";
+                    }
+                }
+            });
+        }
+
+        function terminateRepeat() {
+            if (repeatPairs.length > 0) {
+                repeatPairs.shift();
+                const repeatersDiv = document.getElementById('repeaters');
+                repeatersDiv.removeChild(repeatersDiv.firstChild);
+                repeatersDiv.removeChild(repeatersDiv.firstChild);
+                // Reset the currentPairIndex if there are no more repeat pairs
+                if (repeatPairs.length === 0) {
+                    currentPairIndex = 0;
+                } else {
+                    currentPairIndex = currentPairIndex % repeatPairs.length;
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', handleLoop);
+    </script>
+</body>
+</html>
